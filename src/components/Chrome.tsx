@@ -60,11 +60,31 @@ function Preloader({ onDone }: { onDone: () => void }) {
   const [pct, setPct] = useState(0);
 
   useEffect(() => {
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      onDone();
+      const el = rootRef.current;
+      if (!el) return;
+      if (reducedMotion()) {
+        el.remove();
+        return;
+      }
+      gsap.to(el, {
+        yPercent: -100,
+        duration: 0.7,
+        ease: "power3.inOut",
+        onComplete: () => el.remove(),
+      });
+      // failsafe: never let the overlay stick if the tween is throttled
+      window.setTimeout(() => el.remove(), 1200);
+    };
+
     if (reducedMotion()) {
       setPct(100);
-      onDone();
-      const t = window.setTimeout(() => rootRef.current?.remove(), 50);
-      return () => window.clearTimeout(t);
+      finish();
+      return;
     }
     const obj = { v: 0 };
     const tween = gsap.to(obj, {
@@ -72,17 +92,20 @@ function Preloader({ onDone }: { onDone: () => void }) {
       duration: 1.25,
       ease: "power2.inOut",
       onUpdate: () => setPct(Math.round(obj.v)),
-      onComplete: () => {
-        onDone();
-        gsap.to(rootRef.current, {
-          yPercent: -100,
-          duration: 0.7,
-          ease: "power3.inOut",
-          onComplete: () => rootRef.current?.remove(),
-        });
-      },
+      onComplete: finish,
     });
-    return () => { tween.kill(); };
+    // Failsafes: background tabs / unfocused preview iframes throttle rAF,
+    // which would freeze the tween — force completion regardless.
+    const hard = window.setTimeout(finish, 2400);
+    const onVisible = () => {
+      if (!document.hidden && tween.progress() < 1) tween.progress(1);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      tween.kill();
+      window.clearTimeout(hard);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

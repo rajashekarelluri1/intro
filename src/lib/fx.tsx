@@ -19,17 +19,31 @@ export function useInView<T extends HTMLElement>(threshold = 0.25) {
       setInView(true);
       return;
     }
+    let done = false;
+    const reveal = () => {
+      if (done) return;
+      done = true;
+      setInView(true);
+      io.disconnect();
+    };
     const io = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting) {
-          setInView(true);
-          io.disconnect();
-        }
+        if (entries[0].isIntersecting) reveal();
       },
       { threshold, rootMargin: "0px 0px -8% 0px" }
     );
     io.observe(el);
-    return () => io.disconnect();
+    // Failsafe: unusual embed contexts (backgrounded preview iframes, zero-size
+    // initial viewports) can delay or drop IO callbacks — never leave content invisible.
+    const fallback = window.setTimeout(() => {
+      const r = el.getBoundingClientRect();
+      const vh = window.innerHeight || document.documentElement.clientHeight || 800;
+      if (r.top < vh && r.bottom > 0) reveal();
+    }, 1600);
+    return () => {
+      io.disconnect();
+      window.clearTimeout(fallback);
+    };
   }, [threshold]);
   return { ref, inView };
 }

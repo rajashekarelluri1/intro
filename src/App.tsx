@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Component, useEffect, useRef, useState, type ReactNode } from "react";
 import { initEngine, ScrollTrigger, THEME_EVENT, getTheme } from "./lib/engine";
 import type { DataWorld } from "./three/world";
 import { Chrome } from "./components/Chrome";
@@ -10,6 +10,29 @@ import Career from "./components/Career";
 import Projects from "./components/Projects";
 import { Lab, Intel } from "./components/Lab";
 import Contact from "./components/Contact";
+
+/** Keeps the page alive even if a single scene misbehaves at runtime. */
+class SceneBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(error: unknown) {
+    console.warn("Scene error contained:", error);
+  }
+  render() {
+    if (this.state.failed) {
+      return (
+        <section className="relative mx-auto max-w-[1500px] px-6 py-40 text-center">
+          <p className="mono text-[0.66rem] tracking-[0.3em] text-faint uppercase">
+            A scene failed to render — the journey continues below.
+          </p>
+        </section>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -25,14 +48,22 @@ export default function App() {
     const boot = () => {
       if (!canvas) return;
       // Three.js lives in its own lazy chunk — first paint stays fast.
-      import("./three/world").then(({ DataWorld }) => {
-        if (cancelled) return;
-        if (world) world.dispose();
-        world = new DataWorld(canvas, getTheme());
-        world.start();
-        window.clearTimeout(refreshTimer);
-        refreshTimer = window.setTimeout(() => ScrollTrigger.refresh(), 350);
-      });
+      // WebGL failure must never take the page down with it.
+      import("./three/world")
+        .then(({ DataWorld }) => {
+          if (cancelled) return;
+          try {
+            if (world) world.dispose();
+            world = new DataWorld(canvas, getTheme());
+            world.start();
+          } catch (err) {
+            console.warn("3D world unavailable — continuing without WebGL.", err);
+            world = null;
+          }
+          window.clearTimeout(refreshTimer);
+          refreshTimer = window.setTimeout(() => ScrollTrigger.refresh(), 350);
+        })
+        .catch((err) => console.warn("3D world chunk failed to load.", err));
     };
 
     boot();
@@ -55,17 +86,39 @@ export default function App() {
       <Chrome booted={booted} onBoot={() => setBooted(true)} />
 
       <main className="relative z-10">
-        <Hero booted={booted} />
-        <About />
-        <Impact />
-        <Education />
-        <Toolbox />
-        <Workflow />
-        <Career />
-        <Projects />
-        <Lab />
-        <Intel />
-        <Contact />
+        <SceneBoundary>
+          <Hero booted={booted} />
+        </SceneBoundary>
+        <SceneBoundary>
+          <About />
+        </SceneBoundary>
+        <SceneBoundary>
+          <Impact />
+        </SceneBoundary>
+        <SceneBoundary>
+          <Education />
+        </SceneBoundary>
+        <SceneBoundary>
+          <Toolbox />
+        </SceneBoundary>
+        <SceneBoundary>
+          <Workflow />
+        </SceneBoundary>
+        <SceneBoundary>
+          <Career />
+        </SceneBoundary>
+        <SceneBoundary>
+          <Projects />
+        </SceneBoundary>
+        <SceneBoundary>
+          <Lab />
+        </SceneBoundary>
+        <SceneBoundary>
+          <Intel />
+        </SceneBoundary>
+        <SceneBoundary>
+          <Contact />
+        </SceneBoundary>
       </main>
     </div>
   );
