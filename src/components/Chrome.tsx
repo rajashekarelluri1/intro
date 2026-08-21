@@ -110,7 +110,7 @@ function Preloader({ onDone }: { onDone: () => void }) {
   }, []);
 
   return (
-    <div ref={rootRef} className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-bg0">
+    <div ref={rootRef} className="preloader-shell fixed inset-0 z-[100] flex flex-col items-center justify-center bg-bg0">
       <div className="mono text-[0.62rem] tracking-[0.42em] text-faint">INITIALIZING DATA STREAMS</div>
       <div className="display mt-4 text-5xl md:text-6xl font-bold text-ink tabular-nums">
         {pct}

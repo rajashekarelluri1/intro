@@ -379,6 +379,22 @@ body {
   }
 }
 
+/* ---------- preloader failsafe ----------
+   Pure-CSS guarantee: even if JS/rAF is throttled (backgrounded preview
+   iframes), the overlay fades out on its own and never blocks interaction. */
+.preloader-shell {
+  pointer-events: none;
+}
+@keyframes preloaderAutoHide {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+.preloader-shell {
+  animation: preloaderAutoHide 0.55s ease 3s forwards;
+}
+
 /* ---------- theme switching ---------- */
 @media (prefers-reduced-motion: no-preference) {
   body,

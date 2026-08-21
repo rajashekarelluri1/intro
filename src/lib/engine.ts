@@ -52,26 +52,41 @@ let lenis: Lenis | null = null;
 
 export function initEngine() {
   // Respect reduced motion: skip Lenis, GSAP animations elsewhere degrade to static.
-  if (!reducedMotion()) {
-    lenis = new Lenis({
-      duration: 1.15,
-      easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      smoothWheel: true,
-    });
-    lenis.on("scroll", (l: Lenis) => {
-      worldState.y = l.animatedScroll;
-      ScrollTrigger.update();
-    });
-    gsap.ticker.add((time) => {
-      lenis?.raf(time * 1000);
-    });
-    gsap.ticker.lagSmoothing(0);
-  } else {
+  const nativeScrollTracking = () => {
     worldState.y = window.scrollY;
-    window.addEventListener("scroll", () => {
-      worldState.y = window.scrollY;
-      ScrollTrigger.update();
-    });
+    window.addEventListener(
+      "scroll",
+      () => {
+        worldState.y = window.scrollY;
+        ScrollTrigger.update();
+      },
+      { passive: true }
+    );
+  };
+
+  if (!reducedMotion()) {
+    try {
+      lenis = new Lenis({
+        duration: 1.15,
+        easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+        smoothWheel: true,
+      });
+      lenis.on("scroll", (l: Lenis) => {
+        worldState.y = l.animatedScroll;
+        ScrollTrigger.update();
+      });
+      gsap.ticker.add((time) => {
+        lenis?.raf(time * 1000);
+      });
+      gsap.ticker.lagSmoothing(0);
+    } catch (err) {
+      // Restricted environments can refuse smooth-scroll setup — degrade to native.
+      console.warn("Lenis unavailable — using native scrolling.", err);
+      lenis = null;
+      nativeScrollTracking();
+    }
+  } else {
+    nativeScrollTracking();
   }
 
   // pointer parallax (fine pointers only)
