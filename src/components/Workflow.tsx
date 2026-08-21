@@ -106,7 +106,7 @@ export default function Workflow() {
 
   return (
     <section id="workflow" ref={sectionRef} aria-label="How I work with data" className="relative bg-bg0/70">
-      <div ref={pinRef} className="h-screen flex flex-col justify-center overflow-hidden">
+      <div ref={pinRef} className="hdvh flex flex-col justify-center overflow-hidden">
         <div className="w-full max-w-[1500px] mx-auto px-5 md:px-10">
           <div className="flex flex-wrap items-end justify-between gap-6">
             <div>

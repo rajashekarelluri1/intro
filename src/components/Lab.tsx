@@ -144,7 +144,7 @@ export function Lab() {
 export function Intel() {
   return (
     <section id="intel" aria-label="Intelligence" className="relative h-[120vh]">
-      <div className="sticky top-0 h-screen flex flex-col items-center justify-center text-center px-6">
+      <div className="sticky top-0 hdvh flex flex-col items-center justify-center text-center px-6">
         <p className="kicker">Scene 10 — The Visual Language</p>
         <h2 className="display mt-8 flex flex-wrap items-baseline justify-center gap-x-3 md:gap-x-5 text-[clamp(1.9rem,6vw,4.6rem)] leading-[1.05] text-ink">
           <Scramble text="DATA" as="span" className="text-teal" />

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { initEngine, ScrollTrigger } from "./lib/engine";
+import { initEngine, ScrollTrigger, THEME_EVENT, getTheme } from "./lib/engine";
 import type { DataWorld } from "./three/world";
 import { Chrome } from "./components/Chrome";
 import Hero from "./components/Hero";
@@ -8,7 +8,7 @@ import { Education, Toolbox } from "./components/EduSkills";
 import Workflow from "./components/Workflow";
 import Career from "./components/Career";
 import Projects from "./components/Projects";
-import { Intel, Lab } from "./components/Lab";
+import { Lab, Intel } from "./components/Lab";
 import Contact from "./components/Contact";
 
 export default function App() {
@@ -16,55 +16,45 @@ export default function App() {
   const [booted, setBooted] = useState(false);
 
   useEffect(() => {
-    const cleanupEngine = initEngine();
+    initEngine();
+    const canvas = canvasRef.current;
     let world: DataWorld | null = null;
     let cancelled = false;
+    let refreshTimer = 0;
 
-    // lazy-load the heavy WebGL scene so the first paint stays fast
-    import("./three/world")
-      .then(({ DataWorld: World }) => {
-        if (cancelled || !canvasRef.current) return;
-        world = new World(canvasRef.current);
+    const boot = () => {
+      if (!canvas) return;
+      // Three.js lives in its own lazy chunk — first paint stays fast.
+      import("./three/world").then(({ DataWorld }) => {
+        if (cancelled) return;
+        if (world) world.dispose();
+        world = new DataWorld(canvas, getTheme());
         world.start();
-        world.refresh();
-        ScrollTrigger.refresh();
-      })
-      .catch((err) => {
-        // graceful fallback: the site remains fully usable without WebGL
-        console.warn("WebGL unavailable — static experience active.", err);
+        window.clearTimeout(refreshTimer);
+        refreshTimer = window.setTimeout(() => ScrollTrigger.refresh(), 350);
       });
-
-    const t = window.setTimeout(() => ScrollTrigger.refresh(), 600);
-    const onFonts = () => {
-      world?.refresh();
-      ScrollTrigger.refresh();
     };
-    if (document.fonts?.ready) document.fonts.ready.then(onFonts).catch(() => undefined);
+
+    boot();
+    // Rebuild the 3D world with the new palette whenever the theme changes.
+    window.addEventListener(THEME_EVENT, boot);
     return () => {
       cancelled = true;
-      window.clearTimeout(t);
+      window.removeEventListener(THEME_EVENT, boot);
+      window.clearTimeout(refreshTimer);
       world?.dispose();
-      cleanupEngine();
     };
   }, []);
 
   return (
-    <div className="grain relative min-h-screen bg-bg0 text-ink selection:bg-teal/30">
-      <a
-        href="#home"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:bg-teal focus:text-bg0 focus:px-4 focus:py-2 mono text-xs"
-      >
-        Skip to content
-      </a>
-
-      {/* cinematic WebGL backdrop */}
-      <canvas ref={canvasRef} className="fixed inset-0 z-0 w-full h-full pointer-events-none" aria-hidden="true" />
+    <div className="relative min-h-screen bg-bg0 text-ink font-body overflow-x-clip">
+      <canvas ref={canvasRef} className="fixed inset-0 z-0 h-full w-full" aria-hidden="true" />
       <div className="vignette" aria-hidden="true" />
-      <div className="bg-blueprint fixed inset-0 z-0 pointer-events-none" aria-hidden="true" />
+      <div className="grain" aria-hidden="true" />
 
       <Chrome booted={booted} onBoot={() => setBooted(true)} />
 
-      <main id="main" className="relative z-10">
+      <main className="relative z-10">
         <Hero booted={booted} />
         <About />
         <Impact />

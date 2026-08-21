@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { worldState, reducedMotion, isCoarsePointer } from "../lib/engine";
+import { worldState, reducedMotion, isCoarsePointer, type ThemeName } from "../lib/engine";
 
 export type StationId =
   | "home" | "about" | "impact" | "education" | "toolbox" | "workflow"
@@ -16,13 +16,99 @@ const STATION_Z: Record<StationId, number> = {
   intel: -580, contact: -640,
 };
 
-const C = {
+type GlowKey = "teal" | "tealSoft" | "amber" | "blue" | "gold";
+
+interface Palette {
+  bg: number;
+  teal: number;
+  amber: number;
+  blue: number;
+  dim: number;
+  line: number;
+  gridA: number;
+  gridB: number;
+  starA: number;
+  paleNode: number;
+  restBar: number;
+  pylonBody: number;
+  winDark: number;
+  monoLine: number;
+  cellDark: number;
+  tealHex: string;
+  amberHex: string;
+  blueHex: string;
+  dimHex: string;
+  faintHex: string;
+  glow: Record<GlowKey, [string, string]>;
+  blend: THREE.Blending;
+  gridOpacity: number;
+  starOpacity: number;
+}
+
+const DARK: Palette = {
   bg: 0x05070d,
   teal: 0x45e5c6,
   amber: 0xffb454,
   blue: 0x6fa8ff,
   dim: 0x5c6b84,
   line: 0x1b2940,
+  gridA: 0x1a2a45,
+  gridB: 0x0e1930,
+  starA: 0x8fa3c2,
+  paleNode: 0xc8d6ea,
+  restBar: 0x16233a,
+  pylonBody: 0x101b30,
+  winDark: 0x16233a,
+  monoLine: 0x2c405f,
+  cellDark: 0x1d3050,
+  tealHex: "#45e5c6",
+  amberHex: "#ffb454",
+  blueHex: "#6fa8ff",
+  dimHex: "#93a3ba",
+  faintHex: "#5c6b84",
+  glow: {
+    teal: ["rgba(69,229,198,0.5)", "rgba(69,229,198,0.12)"],
+    tealSoft: ["rgba(69,229,198,0.4)", "rgba(69,229,198,0.08)"],
+    amber: ["rgba(255,180,84,0.6)", "rgba(255,180,84,0.1)"],
+    blue: ["rgba(111,168,255,0.22)", "rgba(111,168,255,0.05)"],
+    gold: ["rgba(255,214,150,0.75)", "rgba(255,180,84,0.16)"],
+  },
+  blend: THREE.AdditiveBlending,
+  gridOpacity: 0.5,
+  starOpacity: 0.5,
+};
+
+const LIGHT: Palette = {
+  bg: 0xe9eff8,
+  teal: 0x0b8f76,
+  amber: 0xd9820f,
+  blue: 0x2b5fc4,
+  dim: 0x5d6d88,
+  line: 0xb9c6d9,
+  gridA: 0xc2cfdf,
+  gridB: 0xd8e1ee,
+  starA: 0x8ea3c2,
+  paleNode: 0x52657f,
+  restBar: 0xc7d3e4,
+  pylonBody: 0xf4f7fc,
+  winDark: 0xd3ddec,
+  monoLine: 0x94a7c2,
+  cellDark: 0xd8e2f0,
+  tealHex: "#0b8f76",
+  amberHex: "#b26a08",
+  blueHex: "#2b5fc4",
+  dimHex: "#47566f",
+  faintHex: "#7d8ca5",
+  glow: {
+    teal: ["rgba(11,143,118,0.38)", "rgba(11,143,118,0.1)"],
+    tealSoft: ["rgba(11,143,118,0.28)", "rgba(11,143,118,0.07)"],
+    amber: ["rgba(178,106,8,0.42)", "rgba(178,106,8,0.1)"],
+    blue: ["rgba(43,95,196,0.16)", "rgba(43,95,196,0.05)"],
+    gold: ["rgba(214,138,10,0.45)", "rgba(178,106,8,0.12)"],
+  },
+  blend: THREE.NormalBlending,
+  gridOpacity: 0.7,
+  starOpacity: 0.35,
 };
 
 const v0 = new THREE.Vector3();
@@ -54,10 +140,12 @@ export class DataWorld {
   private degraded = false;
   private disposed = false;
   private disposables: Array<{ dispose: () => void }> = [];
+  private P: Palette;
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, theme: ThemeName = "dark") {
     this.coarse = isCoarsePointer();
     this.staticMode = reducedMotion();
+    this.P = theme === "light" ? LIGHT : DARK;
 
     this.renderer = new THREE.WebGLRenderer({
       canvas,
@@ -65,13 +153,14 @@ export class DataWorld {
       powerPreference: "high-performance",
       alpha: false,
     });
-    this.renderer.setClearColor(C.bg, 1);
+    this.renderer.setClearColor(this.P.bg, 1);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.coarse ? 1.5 : 1.75));
     this.renderer.setSize(window.innerWidth, window.innerHeight, false);
 
     this.camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 400);
     this.camera.position.set(0, 0, 22);
-    this.scene.fog = new THREE.Fog(C.bg, 26, 165);
+
+    this.scene.fog = new THREE.Fog(this.P.bg, 26, 165);
 
     this.buildAmbient();
     this.buildHome();
@@ -96,16 +185,17 @@ export class DataWorld {
     this.disposables.push(d);
     return d;
   }
+
   private geom<T extends THREE.BufferGeometry>(g: T): T { return this.track(g); }
   private mat<T extends THREE.Material>(m: T): T { return this.track(m); }
 
   private label(text: string, color: string, scale = 1.4): THREE.Sprite {
     const c = document.createElement("canvas");
     const pad = 26;
-    c.width = 10; c.height = 100;
     let ctx = c.getContext("2d")!;
     ctx.font = "600 46px 'JetBrains Mono', monospace";
     c.width = Math.ceil(ctx.measureText(text).width) + pad * 2;
+    c.height = 100;
     ctx = c.getContext("2d")!;
     ctx.font = "600 46px 'JetBrains Mono', monospace";
     ctx.textBaseline = "middle";
@@ -119,7 +209,8 @@ export class DataWorld {
     return sp;
   }
 
-  private glowTexture(inner: string, outer: string): THREE.Texture {
+  private glowTexture(key: GlowKey): THREE.Texture {
+    const [inner, outer] = this.P.glow[key];
     const c = document.createElement("canvas");
     c.width = c.height = 128;
     const ctx = c.getContext("2d")!;
@@ -132,10 +223,10 @@ export class DataWorld {
     return this.track(new THREE.CanvasTexture(c));
   }
 
-  private glow(color1: string, color2: string, size: number): THREE.Sprite {
+  private glow(key: GlowKey, size: number): THREE.Sprite {
     const m = this.mat(new THREE.SpriteMaterial({
-      map: this.glowTexture(color1, color2),
-      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.85,
+      map: this.glowTexture(key),
+      transparent: true, depthWrite: false, blending: this.P.blend, opacity: 0.85,
     }));
     const s = new THREE.Sprite(m);
     s.scale.setScalar(size);
@@ -145,7 +236,7 @@ export class DataWorld {
   private points(
     n: number,
     fill: (i: number, out: THREE.Vector3) => void,
-    color: number, size: number, opacity = 0.8, additive = false
+    color: number, size: number, opacity = 0.8, glowBlend = false
   ): THREE.Points {
     const pos = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
@@ -156,7 +247,7 @@ export class DataWorld {
     g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
     const m = this.mat(new THREE.PointsMaterial({
       color, size, transparent: true, opacity, depthWrite: false,
-      blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending, sizeAttenuation: true,
+      blending: glowBlend ? this.P.blend : THREE.NormalBlending, sizeAttenuation: true,
     }));
     return new THREE.Points(g, m);
   }
@@ -168,28 +259,30 @@ export class DataWorld {
     return g;
   }
 
-  /* ---------------- ambient: stars, grid, long streams ---------------- */
+  /* ---------------- ambient ---------------- */
 
   private buildAmbient() {
+    const P = this.P;
     const q = this.coarse ? 0.5 : 1;
 
-    this.scene.add(this.points(Math.floor(1300 * q), (_i, v) => {
+    const stars1 = this.points(Math.floor(1300 * q), (_i, v) => {
       v.set((Math.random() - 0.5) * 130, (Math.random() - 0.5) * 60, 30 - Math.random() * 720);
-    }, 0x8fa3c2, 0.16, 0.5));
+    }, P.starA, 0.16, P.starOpacity);
+    this.scene.add(stars1);
 
-    this.scene.add(this.points(Math.floor(420 * q), (_i, v) => {
+    const stars2 = this.points(Math.floor(420 * q), (_i, v) => {
       v.set((Math.random() - 0.5) * 90, (Math.random() - 0.5) * 44, 25 - Math.random() * 700);
-    }, C.teal, 0.22, 0.35, true));
+    }, P.teal, 0.22, P.starOpacity * 0.7, true);
+    this.scene.add(stars2);
 
-    const grid = new THREE.GridHelper(780, 130, 0x1a2a45, 0x0e1930);
+    const grid = new THREE.GridHelper(780, 130, P.gridA, P.gridB);
     grid.position.set(0, -9.5, -320);
     const gm = grid.material as THREE.Material;
     gm.transparent = true;
-    gm.opacity = 0.5;
+    gm.opacity = P.gridOpacity;
     this.track(gm);
     this.scene.add(grid);
 
-    // long data streams that run the entire journey
     const rnd = (a: number, b: number) => a + Math.random() * (b - a);
     for (let s = 0; s < 6; s++) {
       const side = s % 2 === 0 ? 1 : -1;
@@ -205,29 +298,30 @@ export class DataWorld {
         ));
       }
       const curve = new THREE.CatmullRomCurve3(pts);
+      const lineGeo = this.geom(new THREE.BufferGeometry().setFromPoints(curve.getPoints(140)));
       const lineMat = this.mat(new THREE.LineBasicMaterial({
-        color: s % 3 === 2 ? C.amber : C.teal, transparent: true, opacity: 0.1,
+        color: s % 3 === 2 ? P.amber : P.teal, transparent: true, opacity: 0.1,
       }));
-      this.scene.add(new THREE.Line(this.geom(new THREE.BufferGeometry().setFromPoints(curve.getPoints(140))), lineMat));
+      this.scene.add(new THREE.Line(lineGeo, lineMat));
 
       const n = this.coarse ? 6 : 11;
       const pg = this.geom(new THREE.BufferGeometry());
       pg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(n * 3), 3));
       const pm = this.mat(new THREE.PointsMaterial({
-        color: s % 3 === 2 ? C.amber : C.teal, size: 0.3, transparent: true, opacity: 0.85,
-        depthWrite: false, blending: THREE.AdditiveBlending,
+        color: s % 3 === 2 ? P.amber : P.teal, size: 0.3, transparent: true, opacity: 0.85,
+        depthWrite: false, blending: this.P.blend,
       }));
-      const pkt = new THREE.Points(pg, pm);
-      this.scene.add(pkt);
+      const ptsObj = new THREE.Points(pg, pm);
+      this.scene.add(ptsObj);
       const speeds: number[] = [];
       for (let i = 0; i < n; i++) speeds.push(rnd(0.012, 0.03));
       this.updates.push((t) => {
-        const contactFade = 1 - smooth(0.1, 0.55, this.lpById.contact ?? 0);
-        pm.opacity = 0.85 * contactFade;
-        lineMat.opacity = 0.1 * contactFade + 0.012;
-        if (contactFade < 0.02) { pkt.visible = false; return; }
-        pkt.visible = true;
         const attr = pg.getAttribute("position") as THREE.BufferAttribute;
+        const contactFade = 1 - smooth(0.1, 0.55, this.lpById.contact ?? 0);
+        (pm as THREE.PointsMaterial).opacity = 0.85 * contactFade;
+        (lineMat as THREE.LineBasicMaterial).opacity = 0.1 * contactFade + 0.015;
+        if (contactFade < 0.02) { ptsObj.visible = false; return; }
+        ptsObj.visible = true;
         for (let i = 0; i < n; i++) {
           const u = this.staticMode ? (i + 0.5) / n : (t * speeds[i] + i / n) % 1;
           curve.getPointAt(u, v0);
@@ -238,34 +332,38 @@ export class DataWorld {
     }
   }
 
-  /* ---------------- 01 hero ---------------- */
+  /* ---------------- STATION 01 — hero ---------------- */
 
   private buildHome() {
+    const P = this.P;
     const g = this.group("home");
 
     const core = new THREE.Mesh(
       this.geom(new THREE.IcosahedronGeometry(2.7, 1)),
-      this.mat(new THREE.MeshBasicMaterial({ color: C.teal, wireframe: true, transparent: true, opacity: 0.42 }))
+      this.mat(new THREE.MeshBasicMaterial({ color: P.teal, wireframe: true, transparent: true, opacity: 0.42 }))
     );
     core.position.set(4.4, 0.6, -6);
     g.add(core);
 
     const inner = new THREE.Mesh(
       this.geom(new THREE.IcosahedronGeometry(1.25, 0)),
-      this.mat(new THREE.MeshBasicMaterial({ color: C.amber, wireframe: true, transparent: true, opacity: 0.65 }))
+      this.mat(new THREE.MeshBasicMaterial({ color: P.amber, wireframe: true, transparent: true, opacity: 0.65 }))
     );
     inner.position.copy(core.position);
     g.add(inner);
 
-    const halo = this.glow("rgba(69,229,198,0.5)", "rgba(69,229,198,0.12)", 10);
+    const halo = this.glow("teal", 10);
     halo.position.copy(core.position);
     g.add(halo);
 
-    const vortex = this.points(Math.floor(620 * (this.coarse ? 0.5 : 1)), (i, v) => {
+    const q = this.coarse ? 0.5 : 1;
+    const vortex = this.points(Math.floor(620 * q), (i, v) => {
       const a = Math.random() * Math.PI * 2;
       const r = 3.4 + Math.random() * 5.6;
-      v.set(4.4 + Math.cos(a) * r, (Math.random() - 0.5) * (i % 7 === 0 ? 7 : 3.4), -6 + Math.sin(a) * r * 0.55);
-    }, C.teal, 0.14, 0.5, true);
+      v.set(Math.cos(a) * r, (Math.random() - 0.5) * 3.4, -6 + Math.sin(a) * r * 0.55);
+      v.x += 4.4;
+      if (i % 7 === 0) v.y *= 2.1;
+    }, P.teal, 0.14, 0.5, true);
     g.add(vortex);
 
     const frags = [
@@ -274,7 +372,7 @@ export class DataWorld {
     ];
     const sprites: THREE.Sprite[] = [];
     frags.forEach((f, i) => {
-      const sp = this.label(f, i % 3 === 2 ? "#ffb454" : "#7fd9c8", 1.05);
+      const sp = this.label(f, i % 3 === 2 ? P.amberHex : P.tealHex, 1.05);
       const side = i % 2 === 0 ? -1 : 1;
       sp.position.set(side * (5.5 + (i % 3) * 1.6), 3.4 - i * 1.25, -4 - (i % 3) * 2.2);
       g.add(sp);
@@ -294,9 +392,11 @@ export class DataWorld {
     });
   }
 
-  /* ---------------- 02 about: chaos → dataset → insight ---------------- */
+  /* ---------------- STATION 02 — about morph ---------------- */
 
+  private aboutPositions!: THREE.BufferAttribute;
   private buildAbout() {
+    const P = this.P;
     const g = this.group("about");
     const N = this.coarse ? 400 : 784;
     const side = Math.round(Math.sqrt(N));
@@ -331,30 +431,32 @@ export class DataWorld {
     }
 
     const geo = this.geom(new THREE.BufferGeometry());
-    const posAttr = new THREE.BufferAttribute(A.slice(), 3);
-    geo.setAttribute("position", posAttr);
-    const pm = this.mat(new THREE.PointsMaterial({ color: C.dim, size: 0.17, transparent: true, opacity: 0.9, depthWrite: false }));
+    this.aboutPositions = new THREE.BufferAttribute(A.slice(), 3);
+    geo.setAttribute("position", this.aboutPositions);
+    const pm = this.mat(new THREE.PointsMaterial({
+      color: P.dim, size: 0.17, transparent: true, opacity: 0.9, depthWrite: false,
+    }));
     g.add(new THREE.Points(geo, pm));
 
     const words = ["DATA", "ANALYSIS", "INSIGHT", "DECISION"];
     const labels = words.map((w, i) => {
-      const sp = this.label(w, i === 2 ? "#ffb454" : "#45e5c6", 1.15);
+      const sp = this.label(w, i === 2 ? P.amberHex : P.tealHex, 1.15);
       sp.position.set(-9 + i * 6, -5.6, 0);
-      sp.material.opacity = 0;
+      (sp.material as THREE.SpriteMaterial).opacity = 0;
       g.add(sp);
       return sp;
     });
 
-    const colA = new THREE.Color(C.dim);
-    const colB = new THREE.Color(C.teal);
-    const colD = new THREE.Color(C.amber);
+    const colA = new THREE.Color(P.dim);
+    const colB = new THREE.Color(P.teal);
+    const colD = new THREE.Color(P.amber);
     const tmp = new THREE.Color();
 
     this.updates.push((_t, lp, st) => {
       if (st !== "about") return;
       const p1 = smooth(0.05, 0.5, lp);
       const p2 = smooth(0.5, 0.92, lp);
-      const arr = posAttr.array as Float32Array;
+      const arr = this.aboutPositions.array as Float32Array;
       for (let i = 0; i < N; i++) {
         const j = i * 3;
         let x = A[j] + (B[j] - A[j]) * p1;
@@ -365,35 +467,38 @@ export class DataWorld {
         z += (D[j + 2] - z) * p2;
         arr[j] = x; arr[j + 1] = y; arr[j + 2] = z;
       }
-      posAttr.needsUpdate = true;
+      this.aboutPositions.needsUpdate = true;
       tmp.copy(colA).lerp(colB, p1).lerp(colD, p2);
-      pm.color.copy(tmp);
+      (pm as THREE.PointsMaterial).color.copy(tmp);
       labels.forEach((sp, i) => {
-        sp.material.opacity = smooth(0.12 + i * 0.2, 0.3 + i * 0.2, lp) * 0.95;
+        (sp.material as THREE.SpriteMaterial).opacity = smooth(0.12 + i * 0.2, 0.3 + i * 0.2, lp) * 0.95;
       });
     });
   }
 
-  /* ---------------- 03 impact gauge + medals ---------------- */
+  /* ---------------- STATION 03 — impact ---------------- */
 
   private buildImpact() {
+    const P = this.P;
     const g = this.group("impact");
     const N = 120;
-    const inst = new THREE.InstancedMesh(
-      this.geom(new THREE.BoxGeometry(0.2, 0.62, 0.2)),
-      this.mat(new THREE.MeshBasicMaterial({ color: 0xffffff })),
-      N
-    );
+    const box = this.geom(new THREE.BoxGeometry(0.2, 0.62, 0.2));
+    const bm = this.mat(new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    const inst = new THREE.InstancedMesh(box, bm, N);
     const mtx = new THREE.Matrix4();
     const quat = new THREE.Quaternion();
     const eul = new THREE.Euler();
-    const colFilled = new THREE.Color(C.teal);
-    const colRest = new THREE.Color(0x16233a);
+    const colFilled = new THREE.Color(P.teal);
+    const colRest = new THREE.Color(P.restBar);
     for (let i = 0; i < N; i++) {
       const a = (i / N) * Math.PI * 2 - Math.PI / 2;
       eul.set(0, 0, a);
       quat.setFromEuler(eul);
-      mtx.compose(new THREE.Vector3(Math.cos(a) * 4.1, Math.sin(a) * 4.1, 0), quat, new THREE.Vector3(1, 1, 1));
+      mtx.compose(
+        new THREE.Vector3(Math.cos(a) * 4.1, Math.sin(a) * 4.1, 0),
+        quat,
+        new THREE.Vector3(1, 1, 1)
+      );
       inst.setMatrixAt(i, mtx);
       inst.setColorAt(i, colRest);
     }
@@ -402,11 +507,11 @@ export class DataWorld {
     inst.position.set(-4.6, 0.4, -2);
     g.add(inst);
 
-    const center = this.label("80%", "#ffb454", 2.6);
-    center.position.set(-4.6, 0.4, -1.4);
+    const center = this.label("80%", P.amberHex, 2.6);
+    center.position.set(-4.6, 0.4, -1.6);
     g.add(center);
-    const sub = this.label("MANUAL WORK → AUTOMATED", "#93a3ba", 0.95);
-    sub.position.set(-4.6, -2.6, -1.4);
+    const sub = this.label("MANUAL WORK → AUTOMATED", P.dimHex, 0.95);
+    sub.position.set(-4.6, -2.4, -1.6);
     g.add(sub);
 
     const medals: THREE.Mesh[] = [];
@@ -414,15 +519,15 @@ export class DataWorld {
       const m = new THREE.Mesh(
         this.geom(new THREE.OctahedronGeometry(0.4, 0)),
         this.mat(new THREE.MeshBasicMaterial({
-          color: i < 4 ? C.teal : C.amber, wireframe: i >= 4, transparent: true, opacity: 0.9,
+          color: i < 4 ? P.teal : P.amber, wireframe: i >= 4, transparent: true, opacity: 0.9,
         }))
       );
       g.add(m);
       medals.push(m);
     }
-    const glow = this.glow("rgba(69,229,198,0.4)", "rgba(69,229,198,0.1)", 7);
-    glow.position.set(-4.6, 0.4, -3);
-    g.add(glow);
+    const glowSpr = this.glow("tealSoft", 7);
+    glowSpr.position.set(-4.6, 0.4, -3);
+    g.add(glowSpr);
 
     let lastFill = -1;
     this.updates.push((t, lp, st) => {
@@ -430,7 +535,9 @@ export class DataWorld {
       const fill = Math.round(smooth(0.08, 0.85, lp) * N * 0.8);
       if (fill !== lastFill) {
         lastFill = fill;
-        for (let i = 0; i < N; i++) inst.setColorAt(i, i < fill ? colFilled : colRest);
+        for (let i = 0; i < N; i++) {
+          inst.setColorAt(i, i < fill ? colFilled : colRest);
+        }
         if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
       }
       medals.forEach((m, i) => {
@@ -442,9 +549,10 @@ export class DataWorld {
     });
   }
 
-  /* ---------------- 04 education rail ---------------- */
+  /* ---------------- STATION 04 — education ---------------- */
 
   private buildEducation() {
+    const P = this.P;
     const g = this.group("education");
     const curve = new THREE.CatmullRomCurve3([
       new THREE.Vector3(-13, -2.6, 0),
@@ -454,7 +562,7 @@ export class DataWorld {
     ]);
     g.add(new THREE.Mesh(
       this.geom(new THREE.TubeGeometry(curve, 80, 0.045, 6, false)),
-      this.mat(new THREE.MeshBasicMaterial({ color: C.teal, transparent: true, opacity: 0.55 }))
+      this.mat(new THREE.MeshBasicMaterial({ color: P.teal, transparent: true, opacity: 0.55 }))
     ));
 
     const stops = [
@@ -467,15 +575,15 @@ export class DataWorld {
       const p = curve.getPointAt(s.t);
       const node = new THREE.Mesh(
         this.geom(new THREE.SphereGeometry(0.34, 20, 20)),
-        this.mat(new THREE.MeshBasicMaterial({ color: i === 2 ? C.amber : C.teal }))
+        this.mat(new THREE.MeshBasicMaterial({ color: i === 2 ? P.amber : P.teal }))
       );
       node.position.copy(p);
       node.scale.setScalar(0.001);
       g.add(node);
-      const lb = this.label(s.label, "#93a3ba", 1.0);
+      const lb = this.label(s.label, P.dimHex, 1.0);
       lb.position.copy(p).add(new THREE.Vector3(0, -1.3, 0));
       g.add(lb);
-      const gl = this.glow("rgba(69,229,198,0.45)", "rgba(69,229,198,0.08)", 2.6);
+      const gl = this.glow("tealSoft", 2.6);
       gl.position.copy(p);
       g.add(gl);
       nodes.push(node);
@@ -485,20 +593,21 @@ export class DataWorld {
     for (let i = 0; i < 4; i++) {
       const cube = new THREE.Mesh(
         this.geom(new THREE.BoxGeometry(0.36, 0.36, 0.36)),
-        this.mat(new THREE.MeshBasicMaterial({ color: i % 2 ? C.amber : C.blue, wireframe: true }))
+        this.mat(new THREE.MeshBasicMaterial({ color: i % 2 ? P.amber : P.blue, wireframe: true }))
       );
       cube.position.set(-7.5 + i * 5, 4.6, -3);
       g.add(cube);
       certs.push(cube);
     }
-    const cl = this.label("CERTIFICATIONS ×4", "#5c6b84", 0.85);
+    const cl = this.label("CERTIFICATIONS ×4", P.faintHex, 0.85);
     cl.position.set(0, 6, -3);
     g.add(cl);
 
     this.updates.push((t, lp, st) => {
       if (st !== "education") return;
       nodes.forEach((n, i) => {
-        n.scale.setScalar(Math.max(0.001, smooth(0.08 + i * 0.28, 0.3 + i * 0.28, lp)));
+        const s = smooth(0.08 + i * 0.28, 0.3 + i * 0.28, lp);
+        n.scale.setScalar(Math.max(0.001, s));
         n.rotation.y = t * 0.8;
       });
       certs.forEach((cb, i) => {
@@ -509,23 +618,24 @@ export class DataWorld {
     });
   }
 
-  /* ---------------- 05 toolbox orbits ---------------- */
+  /* ---------------- STATION 05 — toolbox ---------------- */
 
   private buildToolbox() {
+    const P = this.P;
     const g = this.group("toolbox");
+
     const core = new THREE.Mesh(
       this.geom(new THREE.OctahedronGeometry(1.5, 0)),
-      this.mat(new THREE.MeshBasicMaterial({ color: C.teal, wireframe: true, transparent: true, opacity: 0.75 }))
+      this.mat(new THREE.MeshBasicMaterial({ color: P.teal, wireframe: true, transparent: true, opacity: 0.75 }))
     );
     g.add(core);
-    const coreGlow = this.glow("rgba(69,229,198,0.5)", "rgba(69,229,198,0.1)", 6.5);
-    g.add(coreGlow);
+    g.add(this.glow("teal", 6.5));
 
     const rings = [
-      { r: 4, tilt: 1.15, speed: 0.14, color: C.amber, count: 3 },
-      { r: 6, tilt: 0.92, speed: -0.1, color: C.teal, count: 5 },
-      { r: 8, tilt: 1.32, speed: 0.07, color: C.blue, count: 5 },
-      { r: 10, tilt: 0.72, speed: -0.05, color: 0xc8d6ea, count: 5 },
+      { r: 4, tilt: 1.15, speed: 0.14, color: P.amber, count: 3 },
+      { r: 6, tilt: 0.92, speed: -0.1, color: P.teal, count: 5 },
+      { r: 8, tilt: 1.32, speed: 0.07, color: P.blue, count: 5 },
+      { r: 10, tilt: 0.72, speed: -0.05, color: P.paleNode, count: 5 },
     ];
     const ringGroups: THREE.Group[] = [];
     rings.forEach((cfg) => {
@@ -538,7 +648,7 @@ export class DataWorld {
       }
       rg.add(new THREE.Line(
         this.geom(new THREE.BufferGeometry().setFromPoints(circlePts)),
-        this.mat(new THREE.LineBasicMaterial({ color: 0x24344f, transparent: true, opacity: 0.85 }))
+        this.mat(new THREE.LineBasicMaterial({ color: P.line, transparent: true, opacity: 0.85 }))
       ));
       const inst = new THREE.InstancedMesh(
         this.geom(new THREE.SphereGeometry(0.2, 12, 12)),
@@ -557,22 +667,26 @@ export class DataWorld {
       ringGroups.push(rg);
     });
 
-    const tag = this.label("18 TOOLS INDEXED", "#5c6b84", 0.9);
+    const tag = this.label("18 TOOLS INDEXED", P.faintHex, 0.9);
     tag.position.set(0, -7.4, 0);
     g.add(tag);
 
     this.updates.push((t, lp, st) => {
       if (st !== "toolbox") return;
-      ringGroups.forEach((rg, i) => { rg.rotation.z = t * rings[i].speed; });
-      core.scale.setScalar(1 + Math.sin(t * 1.8) * 0.06 + smooth(0, 0.5, lp) * 0.15);
+      ringGroups.forEach((rg, i) => {
+        rg.rotation.z = this.staticMode ? 0 : t * rings[i].speed;
+      });
+      const s = 1 + Math.sin(t * 1.8) * 0.06 + smooth(0, 0.5, lp) * 0.15;
+      core.scale.setScalar(s);
       core.rotation.y = t * 0.35;
       core.rotation.x = t * 0.2;
     });
   }
 
-  /* ---------------- 06 pipeline pylons ---------------- */
+  /* ---------------- STATION 06 — pipeline ---------------- */
 
   private buildWorkflow() {
+    const P = this.P;
     const g = this.group("workflow");
     const pylonTop: THREE.Vector3[] = [];
     const pylons: THREE.Mesh[] = [];
@@ -582,14 +696,14 @@ export class DataWorld {
       const z = -i * 10.6;
       const body = new THREE.Mesh(
         this.geom(new THREE.BoxGeometry(0.75, 2.6, 0.75)),
-        this.mat(new THREE.MeshBasicMaterial({ color: 0x101b30, transparent: true, opacity: 0.96 }))
+        this.mat(new THREE.MeshBasicMaterial({ color: P.pylonBody, transparent: true, opacity: 0.96 }))
       );
       body.position.set(x, -1.2, z);
       g.add(body);
       pylons.push(body);
       const cap = new THREE.Mesh(
         this.geom(new THREE.BoxGeometry(0.75, 0.1, 0.75)),
-        this.mat(new THREE.MeshBasicMaterial({ color: i === 6 ? C.amber : C.teal }))
+        this.mat(new THREE.MeshBasicMaterial({ color: i === 6 ? P.amber : P.teal }))
       );
       cap.position.set(x, 0.15, z);
       g.add(cap);
@@ -597,12 +711,12 @@ export class DataWorld {
       const beam = new THREE.Mesh(
         this.geom(new THREE.BoxGeometry(0.05, 7.5, 0.05)),
         this.mat(new THREE.MeshBasicMaterial({
-          color: C.teal, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false,
+          color: P.teal, transparent: true, opacity: 0.16, blending: this.P.blend, depthWrite: false,
         }))
       );
       beam.position.set(x, 3.6, z);
       g.add(beam);
-      const lb = this.label(`0${i + 1}`, i === 6 ? "#ffb454" : "#45e5c6", 1.1);
+      const lb = this.label(`0${i + 1}`, i === 6 ? P.amberHex : P.tealHex, 1.1);
       lb.position.set(x, 1.9, z);
       g.add(lb);
       pylonTop.push(new THREE.Vector3(x, 0.35, z));
@@ -611,15 +725,17 @@ export class DataWorld {
     const curve = new THREE.CatmullRomCurve3(pylonTop);
     g.add(new THREE.Line(
       this.geom(new THREE.BufferGeometry().setFromPoints(curve.getPoints(160))),
-      this.mat(new THREE.LineBasicMaterial({ color: C.teal, transparent: true, opacity: 0.3 }))
+      this.mat(new THREE.LineBasicMaterial({ color: P.teal, transparent: true, opacity: 0.3 }))
     ));
 
     const nPackets = this.coarse ? 22 : 44;
     const pg = this.geom(new THREE.BufferGeometry());
     pg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(nPackets * 3), 3));
-    g.add(new THREE.Points(pg, this.mat(new THREE.PointsMaterial({
-      color: C.amber, size: 0.3, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending,
-    }))));
+    const packets = new THREE.Points(pg, this.mat(new THREE.PointsMaterial({
+      color: P.amber, size: 0.3, transparent: true, opacity: 0.9,
+      depthWrite: false, blending: this.P.blend,
+    })));
+    g.add(packets);
 
     this.updates.push((t, lp, st) => {
       if (st !== "workflow") return;
@@ -640,14 +756,15 @@ export class DataWorld {
     });
   }
 
-  /* ---------------- 07 career: monolith + beacon ---------------- */
+  /* ---------------- STATION 07 — career ---------------- */
 
   private buildCareer() {
+    const P = this.P;
     const g = this.group("experience");
 
     const mono = new THREE.LineSegments(
       this.geom(new THREE.EdgesGeometry(this.geom(new THREE.BoxGeometry(3.1, 8, 3.1)))),
-      this.mat(new THREE.LineBasicMaterial({ color: 0x2c405f, transparent: true, opacity: 0.95 }))
+      this.mat(new THREE.LineBasicMaterial({ color: P.monoLine, transparent: true, opacity: 0.95 }))
     );
     mono.position.set(-4.6, -0.5, -9);
     g.add(mono);
@@ -658,9 +775,9 @@ export class DataWorld {
       20
     );
     const m4 = new THREE.Matrix4();
-    const cLit = new THREE.Color(C.amber);
-    const cTeal = new THREE.Color(C.teal);
-    const cDark = new THREE.Color(0x16233a);
+    const cLit = new THREE.Color(P.amber);
+    const cTeal = new THREE.Color(P.teal);
+    const cDark = new THREE.Color(P.winDark);
     for (let r = 0; r < 5; r++) {
       for (let col = 0; col < 4; col++) {
         const idx = r * 4 + col;
@@ -673,20 +790,20 @@ export class DataWorld {
     if (windows.instanceColor) windows.instanceColor.needsUpdate = true;
     g.add(windows);
 
-    const y2021 = this.label("2021 — TECH MAHINDRA", "#93a3ba", 1.0);
+    const y2021 = this.label("2021 — TECH MAHINDRA", P.dimHex, 1.0);
     y2021.position.set(-4.6, 4.6, -9);
     g.add(y2021);
 
     const cone = new THREE.LineSegments(
       this.geom(new THREE.EdgesGeometry(this.geom(new THREE.ConeGeometry(1.7, 5, 4)))),
-      this.mat(new THREE.LineBasicMaterial({ color: C.teal, transparent: true, opacity: 0.85 }))
+      this.mat(new THREE.LineBasicMaterial({ color: P.teal, transparent: true, opacity: 0.85 }))
     );
     cone.position.set(4.6, -1.4, 3);
     g.add(cone);
-    const beacon = this.glow("rgba(255,180,84,0.6)", "rgba(255,180,84,0.1)", 5);
+    const beacon = this.glow("amber", 5);
     beacon.position.set(4.6, 1.6, 3);
     g.add(beacon);
-    const yNow = this.label("2025 — FRUGAL TESTING · NOW", "#ffb454", 1.0);
+    const yNow = this.label("2025 — FRUGAL TESTING · NOW", P.amberHex, 1.0);
     yNow.position.set(4.6, 4.8, 3);
     g.add(yNow);
 
@@ -695,19 +812,20 @@ export class DataWorld {
     ]);
     g.add(new THREE.Line(
       this.geom(new THREE.BufferGeometry().setFromPoints(railCurve.getPoints(60))),
-      this.mat(new THREE.LineBasicMaterial({ color: 0x1b2940, transparent: true, opacity: 0.9 }))
+      this.mat(new THREE.LineBasicMaterial({ color: P.line, transparent: true, opacity: 0.9 }))
     ));
     const nP = 10;
     const pg = this.geom(new THREE.BufferGeometry());
     pg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(nP * 3), 3));
     g.add(new THREE.Points(pg, this.mat(new THREE.PointsMaterial({
-      color: C.teal, size: 0.26, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending,
+      color: P.teal, size: 0.26, transparent: true, opacity: 0.9, depthWrite: false, blending: this.P.blend,
     }))));
 
     this.updates.push((t, lp, st) => {
       if (st !== "experience") return;
-      beacon.material.opacity = 0.55 + Math.sin(t * 2.2) * 0.25;
-      beacon.scale.setScalar((1 + Math.sin(t * 2.2) * 0.18 + smooth(0.4, 0.9, lp) * 0.5) * 5);
+      (beacon.material as THREE.SpriteMaterial).opacity = 0.55 + Math.sin(t * 2.2) * 0.25;
+      const bs = 1 + Math.sin(t * 2.2) * 0.18 + smooth(0.4, 0.9, lp) * 0.5;
+      beacon.scale.setScalar(bs * 5);
       cone.rotation.y = t * 0.4;
       const attr = pg.getAttribute("position") as THREE.BufferAttribute;
       for (let i = 0; i < nP; i++) {
@@ -719,18 +837,18 @@ export class DataWorld {
     });
   }
 
-  /* ---------------- 08 projects set pieces ---------------- */
+  /* ---------------- STATION 08 — projects ---------------- */
 
   private buildProjects() {
+    const P = this.P;
     const g = this.group("projects");
 
-    // P1 — automation funnel
     const p1 = new THREE.Group();
     p1.position.set(-4.5, 0, 10);
     g.add(p1);
     const grid = new THREE.InstancedMesh(
       this.geom(new THREE.PlaneGeometry(0.44, 0.44)),
-      this.mat(new THREE.MeshBasicMaterial({ color: 0x1d3050, transparent: true, opacity: 0.9, side: THREE.DoubleSide })),
+      this.mat(new THREE.MeshBasicMaterial({ color: P.cellDark, transparent: true, opacity: 0.9, side: THREE.DoubleSide })),
       64
     );
     const m4 = new THREE.Matrix4();
@@ -750,21 +868,20 @@ export class DataWorld {
     const pg1 = this.geom(new THREE.BufferGeometry());
     pg1.setAttribute("position", new THREE.BufferAttribute(new Float32Array(fn * 3), 3));
     p1.add(new THREE.Points(pg1, this.mat(new THREE.PointsMaterial({
-      color: C.amber, size: 0.26, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending,
+      color: P.amber, size: 0.26, transparent: true, opacity: 0.95, depthWrite: false, blending: this.P.blend,
     }))));
 
-    // P2 — self-building bars + donut
     const p2 = new THREE.Group();
     p2.position.set(4.6, -1, -4);
     g.add(p2);
     const heights = [1.2, 2, 1.6, 2.6, 2.2, 3.2, 2.8, 3.8, 3.4, 4.4, 4, 5];
     const bars: THREE.Mesh[] = [];
     heights.forEach((h, i) => {
-      const bar = new THREE.Mesh(
-        this.geom(new THREE.BoxGeometry(0.46, h, 0.46)),
-        this.mat(new THREE.MeshBasicMaterial({ color: i % 4 === 3 ? C.amber : C.teal, transparent: true, opacity: 0.85 }))
-      );
-      bar.geometry.translate(0, h / 2, 0);
+      const geo = this.geom(new THREE.BoxGeometry(0.46, h, 0.46));
+      geo.translate(0, h / 2, 0);
+      const bar = new THREE.Mesh(geo, this.mat(new THREE.MeshBasicMaterial({
+        color: i % 4 === 3 ? P.amber : P.teal, transparent: true, opacity: 0.85,
+      })));
       bar.position.set(-3 + i * 0.66, -2.2, 0);
       bar.scale.y = 0.001;
       p2.add(bar);
@@ -772,26 +889,25 @@ export class DataWorld {
     });
     const donut = new THREE.Mesh(
       this.geom(new THREE.TorusGeometry(1.1, 0.16, 10, 40, Math.PI * 1.45)),
-      this.mat(new THREE.MeshBasicMaterial({ color: C.amber, transparent: true, opacity: 0.9 }))
+      this.mat(new THREE.MeshBasicMaterial({ color: P.amber, transparent: true, opacity: 0.9 }))
     );
     donut.position.set(5.4, 0.8, 0);
     p2.add(donut);
     const donut2 = new THREE.Mesh(
       this.geom(new THREE.TorusGeometry(1.1, 0.16, 10, 40, Math.PI * 0.55)),
-      this.mat(new THREE.MeshBasicMaterial({ color: 0x1d3050 }))
+      this.mat(new THREE.MeshBasicMaterial({ color: P.cellDark }))
     );
     donut2.rotation.z = Math.PI * 1.45;
     donut2.position.copy(donut.position);
     p2.add(donut2);
 
-    // P3 — EDA clusters
     const p3 = new THREE.Group();
     p3.position.set(-4.6, 0.4, -18);
     g.add(p3);
     const clusters = [
-      { c: new THREE.Vector3(-2, 1.6, 0), color: C.teal },
-      { c: new THREE.Vector3(2.2, 0.6, 0.4), color: C.amber },
-      { c: new THREE.Vector3(0, -1.9, -0.4), color: C.blue },
+      { c: new THREE.Vector3(-2, 1.6, 0), color: P.teal },
+      { c: new THREE.Vector3(2.2, 0.6, 0.4), color: P.amber },
+      { c: new THREE.Vector3(0, -1.9, -0.4), color: P.blue },
     ];
     const per = this.coarse ? 50 : 80;
     const n3 = per * 3;
@@ -844,7 +960,8 @@ export class DataWorld {
 
       const rise = smooth(0.2, 0.8, lp);
       bars.forEach((b, i) => {
-        b.scale.y = Math.max(0.001, clamp01(rise * 1.6 - (i / bars.length) * 0.6));
+        const local = clamp01(rise * 1.6 - (i / bars.length) * 0.6);
+        b.scale.y = Math.max(0.001, local);
       });
       donut.rotation.z = t * 0.3;
       donut2.rotation.z = Math.PI * 1.45 + t * 0.3;
@@ -859,7 +976,7 @@ export class DataWorld {
     });
   }
 
-  /* ---------------- 09 lab dashboards ---------------- */
+  /* ---------------- STATION 09 — lab dashboards ---------------- */
 
   private dashTexture(seed: number): THREE.Texture {
     const c = document.createElement("canvas");
@@ -881,7 +998,7 @@ export class DataWorld {
     ctx.fillText(seed === 0 ? "kpi_overview.pbix" : seed === 1 ? "query_workspace.sql" : "sheet_model.xlsx", 96, 32);
     if (seed === 0) {
       for (let i = 0; i < 12; i++) {
-        const h = 40 + ((i * 53 + 31) % 140);
+        const h = 40 + ((i * 53 + seed * 31) % 140);
         ctx.fillStyle = i % 4 === 3 ? "#ffb454" : "#45e5c6";
         ctx.globalAlpha = 0.85;
         ctx.fillRect(44 + i * 47, 340 - h, 30, h);
@@ -889,10 +1006,7 @@ export class DataWorld {
       ctx.globalAlpha = 1;
     } else if (seed === 1) {
       ctx.font = "500 19px 'JetBrains Mono', monospace";
-      const lines = [
-        "SELECT region, SUM(kpi)", "FROM fact_performance", "WHERE dt >= '2025-01-01'",
-        "GROUP BY region", "ORDER BY 2 DESC;", "-- ✓ 24 rows · 0.03s",
-      ];
+      const lines = ["SELECT region, SUM(kpi)", "FROM fact_performance", "WHERE dt >= '2025-01-01'", "GROUP BY region", "ORDER BY 2 DESC;", "-- ✓ 24 rows · 0.03s"];
       lines.forEach((l, i) => {
         ctx.fillStyle = l.startsWith("--") ? "#45e5c6" : l.startsWith("SELECT") ? "#ffb454" : "#93a3ba";
         ctx.fillText(l, 44, 92 + i * 44);
@@ -905,7 +1019,7 @@ export class DataWorld {
       ctx.beginPath();
       for (let i = 0; i <= 20; i++) {
         const x = 40 + i * 28;
-        const y = 240 - Math.sin(i * 0.62 + seed) * 70 - ((i * 29 + 17) % 40);
+        const y = 240 - Math.sin(i * 0.62 + seed) * 70 - ((i * 29 + seed * 17) % 40);
         if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
       }
       ctx.stroke();
@@ -930,7 +1044,7 @@ export class DataWorld {
       mesh.rotation.y = c.ry;
       g.add(mesh);
       panels.push(mesh);
-      const gl = this.glow("rgba(111,168,255,0.22)", "rgba(111,168,255,0.05)", 6);
+      const gl = this.glow("blue", 6);
       gl.position.set(c.x, c.y, c.z - 0.4);
       g.add(gl);
     });
@@ -943,25 +1057,22 @@ export class DataWorld {
     });
   }
 
-  /* ---------------- 10 intelligence lattice ---------------- */
+  /* ---------------- STATION 10 — intelligence lattice ---------------- */
 
   private buildIntel() {
+    const P = this.P;
     const g = this.group("intel");
     const layers = [5, 7, 5];
-    const layerZ = [2.5, -1.5, -5.5];
     const nodes: THREE.Vector3[] = [];
+    const layerZ = [2.5, -1.5, -5.5];
     const nodeMeshes: THREE.Mesh[] = [];
     layers.forEach((count, li) => {
       for (let i = 0; i < count; i++) {
-        const p = new THREE.Vector3(
-          (i / (count - 1) - 0.5) * 9,
-          (li === 1 ? 0.4 : 0) + Math.sin(i * 2.1) * 0.7,
-          layerZ[li]
-        );
+        const p = new THREE.Vector3((i / (count - 1) - 0.5) * 9, (li === 1 ? 0.4 : 0) + Math.sin(i * 2.1) * 0.7, layerZ[li]);
         nodes.push(p);
         const m = new THREE.Mesh(
           this.geom(new THREE.SphereGeometry(0.17, 10, 10)),
-          this.mat(new THREE.MeshBasicMaterial({ color: li === 1 ? C.teal : C.blue }))
+          this.mat(new THREE.MeshBasicMaterial({ color: li === 1 ? P.teal : P.blue }))
         );
         m.position.copy(p);
         g.add(m);
@@ -973,37 +1084,43 @@ export class DataWorld {
     for (let li = 0; li < layers.length - 1; li++) {
       const next = offset + layers[li];
       for (let a = 0; a < layers[li]; a++) {
-        for (let b = 0; b < layers[li + 1]; b++) segPts.push(nodes[offset + a], nodes[next + b]);
+        for (let b = 0; b < layers[li + 1]; b++) {
+          segPts.push(nodes[offset + a], nodes[next + b]);
+        }
       }
       offset = next;
     }
-    const lineMat = this.mat(new THREE.LineBasicMaterial({ color: C.teal, transparent: true, opacity: 0.16 }));
+    const lineMat = this.mat(new THREE.LineBasicMaterial({ color: P.teal, transparent: true, opacity: 0.16 }));
     g.add(new THREE.LineSegments(this.geom(new THREE.BufferGeometry().setFromPoints(segPts)), lineMat));
 
-    const swirl = this.points(Math.floor(240 * (this.coarse ? 0.5 : 1)), (i, v) => {
+    const q = this.coarse ? 0.5 : 1;
+    const swirl = this.points(Math.floor(240 * q), (i, v) => {
       const a = (i / 240) * Math.PI * 10;
       const r = 6 + Math.sin(i * 0.31) * 1.6;
       v.set(Math.cos(a) * r, (i / 240 - 0.5) * 9, -1.5 + Math.sin(a) * r * 0.4);
-    }, C.teal, 0.13, 0.4, true);
+    }, P.teal, 0.13, 0.4, true);
     g.add(swirl);
 
     this.updates.push((t, _lp, st) => {
       if (st !== "intel") return;
-      lineMat.opacity = 0.14 + Math.sin(t * 1.7) * 0.08;
+      (lineMat as THREE.LineBasicMaterial).opacity = 0.14 + Math.sin(t * 1.7) * 0.08;
       swirl.rotation.y = t * 0.05;
-      nodeMeshes.forEach((m, i) => m.scale.setScalar(1 + Math.sin(t * 2 + i * 0.8) * 0.22));
+      nodeMeshes.forEach((m, i) => {
+        m.scale.setScalar(1 + Math.sin(t * 2 + i * 0.8) * 0.22);
+      });
     });
   }
 
-  /* ---------------- 11 convergence ---------------- */
+  /* ---------------- STATION 11 — convergence ---------------- */
 
   private buildContact() {
+    const P = this.P;
     const g = this.group("contact");
     const corePos = new THREE.Vector3(0, 0.2, -8);
-    const core = this.glow("rgba(255,214,150,0.75)", "rgba(255,180,84,0.16)", 6.5);
+    const core = this.glow("gold", 6.5);
     core.position.copy(corePos);
     g.add(core);
-    const core2 = this.glow("rgba(69,229,198,0.4)", "rgba(69,229,198,0.08)", 11);
+    const core2 = this.glow("tealSoft", 11);
     core2.position.copy(corePos);
     g.add(core2);
 
@@ -1016,7 +1133,9 @@ export class DataWorld {
       curves.push(cv);
       g.add(new THREE.Line(
         this.geom(new THREE.BufferGeometry().setFromPoints(cv.getPoints(50))),
-        this.mat(new THREE.LineBasicMaterial({ color: i % 3 === 0 ? C.amber : C.teal, transparent: true, opacity: 0.22 }))
+        this.mat(new THREE.LineBasicMaterial({
+          color: i % 3 === 0 ? P.amber : P.teal, transparent: true, opacity: 0.22,
+        }))
       ));
     }
     const per = 6;
@@ -1024,7 +1143,7 @@ export class DataWorld {
     const pg = this.geom(new THREE.BufferGeometry());
     pg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(n * 3), 3));
     g.add(new THREE.Points(pg, this.mat(new THREE.PointsMaterial({
-      color: 0xffd696, size: 0.3, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending,
+      color: 0xffd696, size: 0.3, transparent: true, opacity: 0.95, depthWrite: false, blending: this.P.blend,
     }))));
 
     const rings: THREE.Mesh[] = [];
@@ -1032,7 +1151,7 @@ export class DataWorld {
       const ring = new THREE.Mesh(
         this.geom(new THREE.RingGeometry(1.9, 2, 64)),
         this.mat(new THREE.MeshBasicMaterial({
-          color: i === 0 ? C.teal : C.amber, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false,
+          color: i === 0 ? P.teal : P.amber, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false,
         }))
       );
       ring.position.copy(corePos);
@@ -1056,7 +1175,7 @@ export class DataWorld {
       }
       attr.needsUpdate = true;
       rings.forEach((r, i) => {
-        const cyc = this.staticMode ? 0.3 : (t * 0.35 + i * 0.5) % 1;
+        const cyc = this.staticMode ? 0.3 : ((t * 0.35 + i * 0.5) % 1);
         r.scale.setScalar(1 + cyc * 6.5);
         (r.material as THREE.MeshBasicMaterial).opacity = (1 - cyc) * 0.4 * (0.4 + pull * 0.6);
       });
@@ -1075,10 +1194,6 @@ export class DataWorld {
       const dt = Math.min(this.clock.getDelta(), 0.05);
       const t = this.staticMode ? 0 : this.clock.elapsedTime;
 
-      for (const a of this.anchors) {
-        this.lpById[a.id] = clamp01((worldState.y - a.start) / Math.max(1, a.end - a.start));
-      }
-
       const target = this.cameraTarget();
       const damp = this.staticMode ? 1 : 1 - Math.pow(0.0018, dt);
       this.camZ += (target.z - this.camZ) * damp;
@@ -1088,6 +1203,10 @@ export class DataWorld {
       this.camera.position.set(this.camX, this.camY, this.camZ);
       this.camera.lookAt(this.camX * 0.35, this.camY * 0.3, this.camZ - 46);
 
+      for (const a of this.anchors) {
+        const lp = clamp01((worldState.y - a.start) / Math.max(1, a.end - a.start));
+        this.lpById[a.id] = lp;
+      }
       for (const a of this.anchors) {
         const lp = this.lpById[a.id] ?? 0;
         for (const fn of this.updates) fn(t, lp, a.id);
@@ -1130,8 +1249,7 @@ export class DataWorld {
         }
       }
     }
-    const last = a[a.length - 1];
-    return { z: last.z + 10 };
+    return { z: a[a.length - 1].z + 10 };
   }
 
   private computeAnchors() {
@@ -1145,8 +1263,6 @@ export class DataWorld {
     }
   }
 
-  refresh() { this.computeAnchors(); }
-
   private onResize = () => {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
@@ -1158,6 +1274,10 @@ export class DataWorld {
     this.visible = !document.hidden;
     if (this.visible) this.clock.getDelta();
   };
+
+  refresh() {
+    this.computeAnchors();
+  }
 
   dispose() {
     this.disposed = true;

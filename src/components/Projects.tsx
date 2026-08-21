@@ -160,7 +160,7 @@ export default function Projects() {
 
   return (
     <section id="projects" ref={sectionRef} aria-label="Featured projects" className="relative bg-bg0/70">
-      <div ref={pinRef} className="h-screen flex flex-col justify-center overflow-hidden">
+      <div ref={pinRef} className="hdvh flex flex-col justify-center overflow-hidden">
         <div className="w-full max-w-[1500px] mx-auto px-5 md:px-10">
           <Reveal><p className="kicker">{PROJECTS.kicker} — Scene 08</p></Reveal>
           <div className="flex flex-wrap items-end justify-between gap-4">

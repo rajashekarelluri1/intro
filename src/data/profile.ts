@@ -6,6 +6,8 @@
 export const PROFILE = {
   name: "Elluri Rajashekar",
   role: "Data Analyst & BI Expert",
+  photoUrl: "https://raw.githubusercontent.com/rajashekarelluri1/info/main/profile.png",
+  photoAlt: "Elluri Rajashekar — Data Analyst & BI Expert",
   roleShort: "Data Analyst",
   location: "Hyderabad, India",
   greeting: "Hi, I am",
