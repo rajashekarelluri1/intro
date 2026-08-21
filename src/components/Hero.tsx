@@ -70,8 +70,8 @@ export default function Hero({ booted }: { booted: boolean }) {
 
   return (
     <section id="home" ref={sectionRef} aria-label="Introduction — Elluri Rajashekar, Data Analyst and BI Expert" className="relative">
-      <div ref={runwayRef} className="relative h-[185vh]">
-        <div className="sticky top-0 hdvh flex flex-col overflow-hidden">
+      <div ref={runwayRef} className="hero-runway relative h-[185vh]">
+        <div className="hero-sticky sticky top-0 hdvh flex flex-col overflow-hidden">
           {/* vertical side meta */}
           <div className="hidden md:flex absolute left-5 top-1/2 -translate-y-1/2 -rotate-180 items-center gap-4 mono text-[0.58rem] tracking-[0.42em] text-faint [writing-mode:vertical-rl]">
             <span>PORTFOLIO — DATA &amp; BI</span>
@@ -79,7 +79,7 @@ export default function Hero({ booted }: { booted: boolean }) {
             <span className="text-teal">{PROFILE.location.toUpperCase()}</span>
           </div>
 
-          <div className="flex-1 w-full max-w-[1500px] mx-auto px-5 md:px-10 lg:px-16 grid lg:grid-cols-[7fr_5fr] gap-10 items-end pb-8 pt-24 md:pt-28">
+          <div className="hero-content flex-1 w-full max-w-[1500px] mx-auto px-5 md:px-10 lg:px-16 grid lg:grid-cols-[7fr_5fr] gap-10 items-end pb-8 pt-24 md:pt-28">
             {/* identity */}
             <div data-hero-copy>
               <Reveal delay={0.15}>
@@ -88,10 +88,10 @@ export default function Hero({ booted }: { booted: boolean }) {
                   <img
                     src={PROFILE.photoUrl}
                     alt={PROFILE.photoAlt}
-                    width={80}
-                    height={80}
+                    width={112}
+                    height={112}
                     decoding="async"
-                    className="h-10 w-10 rounded-full border border-line2 object-cover lg:hidden"
+                    className="h-24 w-24 rounded-full border border-line2 object-cover lg:hidden"
                     style={{ boxShadow: "var(--shadow)" }}
                   />
                   <span className="hidden lg:inline-flex"><WaveGlyph /></span>
@@ -101,7 +101,7 @@ export default function Hero({ booted }: { booted: boolean }) {
               </Reveal>
 
               <div data-hero-name className="mt-4 md:mt-5 will-change-transform">
-                <h1 className="display font-bold text-ink leading-[0.92] text-[clamp(2.9rem,10vw,8.6rem)]">
+                <h1 className="display font-bold text-ink leading-[0.92] text-[clamp(3.6rem,6.5vw,7rem)]">
                   <Scramble text="ELLURI" as="span" className="block" delay={1150} />
                   <Scramble text="RAJASHEKAR" as="span" className="block" delay={1500} />
                 </h1>
@@ -150,7 +150,7 @@ export default function Hero({ booted }: { booted: boolean }) {
             <div data-hero-panel className="hidden lg:block will-change-transform">
               <Reveal delay={0.7}>
                 <div className="mb-7 flex justify-end pr-1">
-                  <div ref={photoRef} data-hero-photo className="photo-frame group relative h-40 w-40 xl:h-48 xl:w-48 will-change-transform">
+                  <div ref={photoRef} data-hero-photo className="photo-frame hero-portrait group relative will-change-transform">
                     <svg
                       className="photo-ring absolute -inset-3 text-teal/50"
                       style={{ width: "calc(100% + 24px)", height: "calc(100% + 24px)" }}
@@ -176,7 +176,7 @@ export default function Hero({ booted }: { booted: boolean }) {
                 </div>
               </Reveal>
               <Reveal delay={0.85}>
-                <aside className="panel corner-frame relative overflow-hidden p-6" aria-label="Live profile readout">
+                <aside className="panel corner-frame relative overflow-hidden p-4" aria-label="Live profile readout">
                   <div className="absolute inset-x-0 top-0 h-16 overflow-hidden pointer-events-none" aria-hidden="true">
                     <div className="scanline h-10 w-full bg-gradient-to-b from-transparent via-teal/8 to-transparent" />
                   </div>
@@ -187,7 +187,7 @@ export default function Hero({ booted }: { booted: boolean }) {
                       ONLINE
                     </span>
                   </div>
-                  <div className="mt-5 space-y-3.5">
+                  <div className="mt-2.5 space-y-2">
                     <div className="flex items-baseline justify-between border-b border-line/70 pb-2.5">
                       <span className="mono text-[0.6rem] tracking-[0.26em] text-faint">NAME</span>
                       <span className="display text-[0.95rem] text-ink">{PROFILE.name}</span>
@@ -209,9 +209,9 @@ export default function Hero({ booted }: { booted: boolean }) {
                       </span>
                     </div>
                   </div>
-                  <div className="mt-5 grid grid-cols-3 divide-x divide-line/70 border border-line/70 bg-bg0/40">
+                  <div className="mt-2.5 grid grid-cols-3 divide-x divide-line/70 border border-line/70 bg-bg0/40">
                     {HERO_METRICS.map((m) => (
-                      <div key={m.label} className="px-3 py-3 text-center">
+                      <div key={m.label} className="px-2 py-2 text-center">
                         <div className="display text-[1.35rem] text-amber leading-none">
                           <CountUp to={m.value} suffix={m.suffix} />
                         </div>

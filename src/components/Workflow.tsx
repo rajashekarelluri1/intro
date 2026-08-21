@@ -76,6 +76,7 @@ export default function Workflow() {
   const barRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (window.matchMedia("(max-width: 767px)").matches) return;
     const ctx = gsap.context(() => {
       const track = trackRef.current;
       const pin = pinRef.current;
@@ -106,7 +107,7 @@ export default function Workflow() {
 
   return (
     <section id="workflow" ref={sectionRef} aria-label="How I work with data" className="relative bg-bg0/70">
-      <div ref={pinRef} className="hdvh flex flex-col justify-center overflow-hidden">
+      <div ref={pinRef} className="workflow-pin hdvh flex flex-col justify-center overflow-hidden">
         <div className="w-full max-w-[1500px] mx-auto px-5 md:px-10">
           <div className="flex flex-wrap items-end justify-between gap-6">
             <div>
@@ -133,7 +134,7 @@ export default function Workflow() {
           </div>
         </div>
 
-        <div ref={trackRef} className="mt-10 md:mt-14 flex items-stretch gap-5 md:gap-7 pl-5 md:pl-[max(1.25rem,calc((100vw-1500px)/2+2.5rem))] pr-[12vw] will-change-transform">
+        <div ref={trackRef} className="workflow-track mt-10 md:mt-14 flex items-stretch gap-5 md:gap-7 pl-5 md:pl-[max(1.25rem,calc((100vw-1500px)/2+2.5rem))] pr-[12vw] will-change-transform">
           {WORKFLOW.stages.map((st, i) => (
             <article
               key={st.stage}

@@ -68,17 +68,13 @@ function Preloader({ onDone }: { onDone: () => void }) {
       const el = rootRef.current;
       if (!el) return;
       if (reducedMotion()) {
-        el.remove();
         return;
       }
       gsap.to(el, {
         yPercent: -100,
         duration: 0.7,
         ease: "power3.inOut",
-        onComplete: () => el.remove(),
       });
-      // failsafe: never let the overlay stick if the tween is throttled
-      window.setTimeout(() => el.remove(), 1200);
     };
 
     if (reducedMotion()) {
